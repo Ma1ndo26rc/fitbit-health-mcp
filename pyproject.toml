@@ -19,6 +19,7 @@ test = ["pytest>=7.4,<9"]
 
 [project.scripts]
 fitbit-health = "fitbit_health.__main__:main"
+fitbit-health-mcp = "fitbit_health.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
