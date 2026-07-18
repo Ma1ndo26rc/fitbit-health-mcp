@@ -2,6 +2,7 @@
 client_secret_*.json
 token*.json
 .env
+.private/
 
 # Personal health data and generated reports
 data/raw/
@@ -14,6 +15,7 @@ health_report.md
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .venv/
 venv/
