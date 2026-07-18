@@ -27,8 +27,10 @@ python -m pip install -e ".[test]"
 ## 首次同步
 
 ```powershell
-python -m fitbit_health sync --days 30
+python -m fitbit_health sync --days 14
 ```
+
+`days` 只支持 `14`、`7`、`3`、`1` 四档；最大抓取范围为 14 天，默认值为 7 天。
 
 首次运行会启动一个临时 localhost 回调服务，并在命令输出中显示 Google 授权链接。复制完整链接到浏览器打开，使用 Fitbit Air 所属的 Google 账号，批准以下三个只读权限：活动与健身、睡眠、健康指标与测量。
 
@@ -80,6 +82,8 @@ python -m fitbit_health.mcp_server
 - `get_resting_heart_rate(days: int = 7)`
 - `get_hrv(days: int = 7)`
 - `get_health_summary(days: int = 7)`
+
+`days` 只支持 `14`、`7`、`3`、`1` 四档；最大抓取范围为 14 天，默认值为 7 天。
 
 每个工具都返回 JSON 对象，固定包含 `requested_days`、`available_days`、`data`、`missing_data` 和 `diagnostics`。缺失数据、单一 API 类型失败和授权失效都会作为诊断返回，不会让 MCP Server 崩溃。
 
