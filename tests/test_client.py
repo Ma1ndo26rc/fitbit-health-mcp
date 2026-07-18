@@ -60,7 +60,7 @@ def test_fetch_all_returns_sanitized_error_for_forbidden() -> None:
     ("data_type", "expected"),
     [
         ("sleep", 'sleep.interval.civil_end_time >= "2026-07-01"'),
-        ("steps", 'steps.interval.civil_end_time >= "2026-07-01"'),
+        ("steps", 'steps.interval.civil_start_time >= "2026-07-01"'),
         ("heart-rate", 'heart_rate.sample_time.civil_time >= "2026-07-01"'),
         ("daily-resting-heart-rate", 'daily_resting_heart_rate.date >= "2026-07-01"'),
         ("daily-heart-rate-variability", 'daily_heart_rate_variability.date >= "2026-07-01"'),

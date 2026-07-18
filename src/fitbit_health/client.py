@@ -10,7 +10,7 @@ BASE_URL = "https://health.googleapis.com/v4/users/me/dataTypes"
 DATA_SOURCE_FAMILY = "users/me/dataSourceFamilies/google-wearables"
 FILTER_FIELDS = {
     "sleep": "sleep.interval.civil_end_time",
-    "steps": "steps.interval.civil_end_time",
+    "steps": "steps.interval.civil_start_time",
     "heart-rate": "heart_rate.sample_time.civil_time",
     "daily-resting-heart-rate": "daily_resting_heart_rate.date",
     "daily-heart-rate-variability": "daily_heart_rate_variability.date",
