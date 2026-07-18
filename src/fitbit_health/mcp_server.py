@@ -4,6 +4,7 @@ from typing import Any, TypedDict
 
 from mcp.server.fastmcp import FastMCP
 
+from fitbit_health.fetch_window import DEFAULT_FETCH_DAYS, FetchDays
 from fitbit_health.mcp_tools import HealthMCPService
 
 
@@ -31,32 +32,32 @@ def create_server(
     server = FastMCP("Fitbit Health", json_response=True)
 
     @server.tool(structured_output=True)
-    def get_sleep(days: int = 7) -> ToolEnvelope:
+    def get_sleep(days: FetchDays = DEFAULT_FETCH_DAYS) -> ToolEnvelope:
         """Get normalized daily sleep data for the requested number of days."""
         return get_service().get_sleep(days)
 
     @server.tool(structured_output=True)
-    def get_steps(days: int = 7) -> ToolEnvelope:
+    def get_steps(days: FetchDays = DEFAULT_FETCH_DAYS) -> ToolEnvelope:
         """Get normalized daily step counts for the requested number of days."""
         return get_service().get_steps(days)
 
     @server.tool(structured_output=True)
-    def get_heart_rate(days: int = 7) -> ToolEnvelope:
+    def get_heart_rate(days: FetchDays = DEFAULT_FETCH_DAYS) -> ToolEnvelope:
         """Get daily average heart rate for the requested number of days."""
         return get_service().get_heart_rate(days)
 
     @server.tool(structured_output=True)
-    def get_resting_heart_rate(days: int = 7) -> ToolEnvelope:
+    def get_resting_heart_rate(days: FetchDays = DEFAULT_FETCH_DAYS) -> ToolEnvelope:
         """Get daily resting heart rate for the requested number of days."""
         return get_service().get_resting_heart_rate(days)
 
     @server.tool(structured_output=True)
-    def get_hrv(days: int = 7) -> ToolEnvelope:
+    def get_hrv(days: FetchDays = DEFAULT_FETCH_DAYS) -> ToolEnvelope:
         """Get daily HRV RMSSD for the requested number of days."""
         return get_service().get_hrv(days)
 
     @server.tool(structured_output=True)
-    def get_health_summary(days: int = 7) -> ToolEnvelope:
+    def get_health_summary(days: FetchDays = DEFAULT_FETCH_DAYS) -> ToolEnvelope:
         """Get the existing multi-metric health analysis as structured JSON."""
         return get_service().get_health_summary(days)
 

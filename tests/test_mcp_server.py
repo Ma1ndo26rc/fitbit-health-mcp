@@ -57,6 +57,7 @@ def test_create_server_is_lazy_and_registers_exactly_six_tools() -> None:
         days_schema = tool.inputSchema["properties"]["days"]
         assert days_schema["type"] == "integer"
         assert days_schema["default"] == 7
+        assert days_schema["enum"] == [14, 7, 3, 1]
         assert tool.description
 
 

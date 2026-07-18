@@ -180,7 +180,7 @@ def test_health_summary_reuses_all_pipeline_types_and_analysis() -> None:
     json.dumps(result)
 
 
-@pytest.mark.parametrize("days", [0, 366, "seven", True])
+@pytest.mark.parametrize("days", [0, 2, 5, 10, 15, 365, "seven", True])
 def test_invalid_days_returns_validation_diagnostic_without_client_call(days) -> None:
     service, fake_client = make_service()
 
@@ -189,9 +189,22 @@ def test_invalid_days_returns_validation_diagnostic_without_client_call(days) ->
     assert set(result) == ENVELOPE_FIELDS
     assert result["available_days"] == 0
     assert result["data"] == []
-    assert "validation" in result["diagnostics"]
+    assert result["diagnostics"] == {
+        "validation": "days must be one of 14, 7, 3, or 1."
+    }
     assert fake_client is not None
     fake_client.fetch_all.assert_not_called()
+
+
+@pytest.mark.parametrize("days", [1, 3, 7, 14])
+def test_metric_tools_accept_all_supported_fetch_windows(days: int) -> None:
+    service, fake_client = make_service({"steps": FetchResult("steps", [])})
+
+    result = service.get_steps(days=days)
+
+    assert result["requested_days"] == days
+    assert fake_client is not None
+    fake_client.fetch_all.assert_called_once()
 
 
 def test_empty_metric_data_returns_every_requested_date_as_missing() -> None:

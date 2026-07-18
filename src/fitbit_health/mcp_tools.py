@@ -7,6 +7,7 @@ from fitbit_health.analytics import analyze
 from fitbit_health.auth import AuthError, load_saved_credentials
 from fitbit_health.client import GoogleHealthClient
 from fitbit_health.config import ConfigError, SCOPES, find_installed_credentials
+from fitbit_health.fetch_window import FETCH_DAYS_ERROR, is_allowed_fetch_days
 from fitbit_health.normalize import normalize_results
 from fitbit_health.pipeline import DATA_TYPES
 
@@ -53,7 +54,7 @@ class HealthMCPService:
 
     @staticmethod
     def _valid_days(days: Any) -> bool:
-        return isinstance(days, int) and not isinstance(days, bool) and 1 <= days <= 365
+        return is_allowed_fetch_days(days)
 
     def _range(self, days: int) -> tuple[date, date]:
         end_date = self._today_factory()
@@ -64,7 +65,7 @@ class HealthMCPService:
             return self._empty_result(
                 days,
                 [],
-                {"validation": "days must be an integer from 1 to 365."},
+                {"validation": FETCH_DAYS_ERROR},
             )
 
         try:
@@ -148,7 +149,7 @@ class HealthMCPService:
             return self._empty_result(
                 days,
                 {},
-                {"validation": "days must be an integer from 1 to 365."},
+                {"validation": FETCH_DAYS_ERROR},
             )
 
         try:
