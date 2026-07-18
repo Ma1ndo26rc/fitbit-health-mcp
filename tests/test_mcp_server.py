@@ -1,6 +1,8 @@
 import asyncio
 from unittest.mock import Mock
 
+import pytest
+
 from fitbit_health.fetch_window import FETCH_DAYS_ERROR
 from fitbit_health.mcp_server import create_server
 
@@ -82,22 +84,39 @@ def test_registered_tool_delegates_and_returns_structured_json() -> None:
     assert '"requested_days": 3' in content[0].text
 
 
-def test_registered_tool_delegates_invalid_days_to_service_envelope() -> None:
+@pytest.mark.parametrize("days", [2, True, "7"])
+def test_registered_tool_delegates_invalid_days_to_service_envelope(days) -> None:
     service = FakeService()
-    invalid_envelope = {
-        "requested_days": 2,
+    received_days = []
+
+    def validation_envelope(value):
+        received_days.append(value)
+        return {
+            "requested_days": (
+                value if isinstance(value, int) and not isinstance(value, bool) else 0
+            ),
+            "available_days": 0,
+            "data": [],
+            "missing_data": [],
+            "diagnostics": {"validation": FETCH_DAYS_ERROR},
+        }
+
+    service.get_steps = Mock(side_effect=validation_envelope)
+    server = create_server(service_factory=lambda: service)
+
+    content, structured = asyncio.run(
+        server.call_tool("get_steps", {"days": days})
+    )
+
+    service.get_steps.assert_called_once()
+    assert received_days[0] is days
+    assert structured == {
+        "requested_days": (
+            days if isinstance(days, int) and not isinstance(days, bool) else 0
+        ),
         "available_days": 0,
         "data": [],
         "missing_data": [],
         "diagnostics": {"validation": FETCH_DAYS_ERROR},
     }
-    service.get_steps = Mock(return_value=invalid_envelope)
-    server = create_server(service_factory=lambda: service)
-
-    content, structured = asyncio.run(
-        server.call_tool("get_steps", {"days": 2})
-    )
-
-    service.get_steps.assert_called_once_with(2)
-    assert structured == invalid_envelope
-    assert '"requested_days": 2' in content[0].text
+    assert '"validation"' in content[0].text

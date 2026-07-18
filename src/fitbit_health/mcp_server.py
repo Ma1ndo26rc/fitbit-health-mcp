@@ -3,15 +3,15 @@ from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from pydantic import WithJsonSchema
 
 from fitbit_health.fetch_window import ALLOWED_FETCH_DAYS, DEFAULT_FETCH_DAYS
 from fitbit_health.mcp_tools import HealthMCPService
 
 
 MCPFetchDays = Annotated[
-    int,
-    Field(json_schema_extra={"enum": list(ALLOWED_FETCH_DAYS)}),
+    Any,
+    WithJsonSchema({"type": "integer", "enum": list(ALLOWED_FETCH_DAYS)}),
 ]
 
 
