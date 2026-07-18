@@ -4,6 +4,7 @@ import sys
 
 from fitbit_health.auth import AuthError
 from fitbit_health.config import ConfigError
+from fitbit_health.fetch_window import ALLOWED_FETCH_DAYS, DEFAULT_FETCH_DAYS
 from fitbit_health.pipeline import PipelineError, run_sync
 
 
@@ -17,10 +18,10 @@ def _parser() -> argparse.ArgumentParser:
     sync.add_argument(
         "--days",
         type=int,
-        default=30,
-        choices=range(1, 366),
-        metavar="1..365",
-        help="同步天数，默认 30",
+        default=DEFAULT_FETCH_DAYS,
+        choices=ALLOWED_FETCH_DAYS,
+        metavar="{14,7,3,1}",
+        help="同步天数，可选 14、7、3、1，默认 7",
     )
     return parser
 

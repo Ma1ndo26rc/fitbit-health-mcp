@@ -5,6 +5,7 @@ from fitbit_health.analytics import analyze
 from fitbit_health.auth import load_credentials
 from fitbit_health.client import FetchResult, GoogleHealthClient
 from fitbit_health.config import SCOPES, find_installed_credentials
+from fitbit_health.fetch_window import FETCH_DAYS_ERROR, is_allowed_fetch_days
 from fitbit_health.normalize import normalize_results
 from fitbit_health.report import write_outputs
 
@@ -29,8 +30,8 @@ def run_sync(
     client: GoogleHealthClient | None = None,
 ) -> tuple[Path, Path, Path]:
     """Fetch, normalize, analyze, and write a local health report."""
-    if not 1 <= days <= 365:
-        raise ValueError("days 必须在 1 到 365 之间。")
+    if not is_allowed_fetch_days(days):
+        raise ValueError(FETCH_DAYS_ERROR)
 
     end_date = today or date.today()
     start_date = end_date - timedelta(days=days - 1)
