@@ -1,8 +1,9 @@
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
-from fitbit_health.auth import AuthError, resolve_credentials
+from fitbit_health.auth import AuthError, ensure_private_file, resolve_credentials
 
 
 def test_reuses_valid_credentials_without_browser() -> None:
@@ -48,3 +49,13 @@ def test_wraps_refresh_failure_without_exposing_token() -> None:
         resolve_credentials(credentials, Mock(), Mock())
 
     assert "secret-refresh-token" not in str(error.value)
+
+
+def test_private_token_remains_writable_for_future_refreshes(tmp_path: Path) -> None:
+    token_path = tmp_path / "token.json"
+    token_path.write_text("first", encoding="utf-8")
+
+    ensure_private_file(token_path)
+    token_path.write_text("second", encoding="utf-8")
+
+    assert token_path.read_text(encoding="utf-8") == "second"

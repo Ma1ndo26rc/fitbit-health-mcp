@@ -53,21 +53,25 @@ def resolve_credentials(
 
 
 def ensure_private_file(path: Path) -> None:
-    """Apply best-effort owner-only permissions and hide the token on Windows."""
+    """Apply best-effort owner-only permissions without blocking token refresh."""
+    if not path.exists():
+        return
+
+    if os.name == "nt":
+        file_attribute_readonly = 0x1
+        file_attribute_hidden = 0x2
+        invalid_file_attributes = 0xFFFFFFFF
+        kernel32 = ctypes.windll.kernel32
+        attributes = kernel32.GetFileAttributesW(str(path))
+        if attributes != invalid_file_attributes:
+            writable_visible = attributes & ~file_attribute_hidden & ~file_attribute_readonly
+            kernel32.SetFileAttributesW(str(path), writable_visible)
+        return
+
     try:
         path.chmod(0o600)
     except OSError:
         pass
-
-    if os.name != "nt" or not path.exists():
-        return
-
-    file_attribute_hidden = 0x2
-    invalid_file_attributes = 0xFFFFFFFF
-    kernel32 = ctypes.windll.kernel32
-    attributes = kernel32.GetFileAttributesW(str(path))
-    if attributes != invalid_file_attributes:
-        kernel32.SetFileAttributesW(str(path), attributes | file_attribute_hidden)
 
 
 def load_credentials(
@@ -88,6 +92,7 @@ def load_credentials(
 
     credentials = resolve_credentials(existing, make_flow, Request())
     token_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_private_file(token_path)
     token_path.write_text(credentials.to_json(), encoding="utf-8")
     ensure_private_file(token_path)
     return credentials
