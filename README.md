@@ -10,8 +10,9 @@
 - 每日静息心率
 - 每日 HRV（RMSSD）
 - 标准化 JSON、分析 JSON 和中文 Markdown 报告
+- 供 ChatGPT/Codex 本地调用的 stdio MCP Server
 
-MCP、网页 Dashboard 和云端定时任务留到下一阶段。
+网页 Dashboard 和云端定时任务不在当前范围内。
 
 ## 安装
 
@@ -53,6 +54,61 @@ python -m compileall -q src tests
 ```
 
 测试只使用合成数据，不包含真实健康记录。
+
+## 本地 MCP Server
+
+MCP Server 复用同一套 OAuth、Google Health API、标准化与分析逻辑。它只使用本地 stdio，不启动 Web Server，也不暴露 HTTP 端口。
+
+首次使用 MCP 前，请在普通终端完成一次交互授权：
+
+```powershell
+python -m fitbit_health sync --days 1
+```
+
+授权成功后，可用任一方式启动：
+
+```powershell
+fitbit-health-mcp
+python -m fitbit_health.mcp_server
+```
+
+可用工具：
+
+- `get_sleep(days: int = 7)`
+- `get_steps(days: int = 7)`
+- `get_heart_rate(days: int = 7)`
+- `get_resting_heart_rate(days: int = 7)`
+- `get_hrv(days: int = 7)`
+- `get_health_summary(days: int = 7)`
+
+每个工具都返回 JSON 对象，固定包含 `requested_days`、`available_days`、`data`、`missing_data` 和 `diagnostics`。缺失数据、单一 API 类型失败和授权失效都会作为诊断返回，不会让 MCP Server 崩溃。
+
+### Codex TOML 配置示例
+
+```toml
+[mcp_servers.fitbit_health]
+command = "D:\\anaconda\\python.exe"
+args = ["-m", "fitbit_health.mcp_server"]
+cwd = "E:\\CodeX_Lab"
+```
+
+### ChatGPT/Codex JSON 配置示例
+
+```json
+{
+  "mcpServers": {
+    "fitbit_health": {
+      "command": "D:\\anaconda\\python.exe",
+      "args": ["-m", "fitbit_health.mcp_server"],
+      "cwd": "E:\\CodeX_Lab"
+    }
+  }
+}
+```
+
+这里的 Python 路径来自本机 `(Get-Command python).Source`。如果环境改变，请替换成新的绝对路径。配置中不要加入 client secret、access token 或 refresh token。
+
+如果工具返回 `diagnostics.authentication`，请退出 MCP 客户端，在普通终端重新运行 `python -m fitbit_health sync --days 1`，授权完成后再重启 MCP 客户端。MCP 进程自身不会打开浏览器或输出 OAuth 授权链接，以免污染 stdio 协议。
 
 ## 常见问题
 
