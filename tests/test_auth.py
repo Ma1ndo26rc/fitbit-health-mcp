@@ -1,0 +1,48 @@
+from unittest.mock import Mock
+
+import pytest
+
+from fitbit_health.auth import AuthError, resolve_credentials
+
+
+def test_reuses_valid_credentials_without_browser() -> None:
+    credentials = Mock(valid=True, expired=False)
+    flow_factory = Mock()
+
+    assert resolve_credentials(credentials, flow_factory, Mock()) is credentials
+    flow_factory.assert_not_called()
+
+
+def test_refreshes_expired_credentials_with_refresh_token() -> None:
+    credentials = Mock(valid=False, expired=True, refresh_token="refresh")
+    request = Mock()
+
+    resolved = resolve_credentials(credentials, Mock(), request)
+
+    credentials.refresh.assert_called_once_with(request)
+    assert resolved is credentials
+
+
+def test_starts_loopback_flow_when_credentials_are_absent() -> None:
+    granted = Mock(valid=True)
+    flow = Mock()
+    flow.run_local_server.return_value = granted
+    flow_factory = Mock(return_value=flow)
+
+    assert resolve_credentials(None, flow_factory, Mock()) is granted
+    flow.run_local_server.assert_called_once_with(
+        host="localhost",
+        port=0,
+        open_browser=True,
+        prompt="consent",
+    )
+
+
+def test_wraps_refresh_failure_without_exposing_token() -> None:
+    credentials = Mock(valid=False, expired=True, refresh_token="secret-refresh-token")
+    credentials.refresh.side_effect = RuntimeError("secret-refresh-token")
+
+    with pytest.raises(AuthError, match="重新授权") as error:
+        resolve_credentials(credentials, Mock(), Mock())
+
+    assert "secret-refresh-token" not in str(error.value)
