@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fitbit-health"
+version = "0.1.0"
+description = "Local Google Health data pipeline for Fitbit Air"
+requires-python = ">=3.12"
+dependencies = [
+  "google-auth>=2.40,<3",
+  "google-auth-oauthlib>=1.2,<2",
+  "requests>=2.32,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.4,<9"]
+
+[project.scripts]
+fitbit-health = "fitbit_health.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
