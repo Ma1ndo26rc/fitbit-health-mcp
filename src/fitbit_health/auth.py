@@ -13,6 +13,12 @@ class AuthError(RuntimeError):
     """Raised when OAuth cannot provide usable credentials."""
 
 
+MCP_AUTH_MESSAGE = (
+    "本地 Google 授权不可用，请在普通终端运行 "
+    "python -m fitbit_health sync --days 1 重新授权。"
+)
+
+
 class LocalFlow(Protocol):
     def run_local_server(self, **kwargs): ...
 
@@ -95,4 +101,34 @@ def load_credentials(
     ensure_private_file(token_path)
     token_path.write_text(credentials.to_json(), encoding="utf-8")
     ensure_private_file(token_path)
+    return credentials
+
+
+def load_saved_credentials(
+    token_path: Path,
+    scopes: tuple[str, ...],
+    request: Request | None = None,
+) -> Credentials:
+    """Load or refresh saved OAuth credentials without user interaction."""
+    if not token_path.exists():
+        raise AuthError(MCP_AUTH_MESSAGE)
+
+    try:
+        credentials = Credentials.from_authorized_user_file(str(token_path), scopes)
+    except (OSError, ValueError) as exc:
+        raise AuthError(MCP_AUTH_MESSAGE) from exc
+
+    if credentials.valid:
+        return credentials
+
+    if not (credentials.expired and credentials.refresh_token):
+        raise AuthError(MCP_AUTH_MESSAGE)
+
+    try:
+        credentials.refresh(request or Request())
+        ensure_private_file(token_path)
+        token_path.write_text(credentials.to_json(), encoding="utf-8")
+        ensure_private_file(token_path)
+    except Exception as exc:
+        raise AuthError(MCP_AUTH_MESSAGE) from exc
     return credentials
