@@ -1,0 +1,25 @@
+# OAuth credentials and tokens
+client_secret_*.json
+token*.json
+.env
+
+# Personal health data and generated reports
+data/raw/
+data/processed/
+reports/
+daily_health_summary.json
+health_analysis.json
+health_report.md
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
