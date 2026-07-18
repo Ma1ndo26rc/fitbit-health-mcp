@@ -1,6 +1,7 @@
 import ctypes
 import os
 from pathlib import Path
+import sys
 from typing import Callable, Protocol
 
 from google.auth.transport.requests import Request
@@ -34,11 +35,18 @@ def resolve_credentials(
 
     try:
         flow = flow_factory()
+        reconfigure = getattr(sys.stdout, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(line_buffering=True, write_through=True)
+        else:
+            sys.stdout.flush()
         return flow.run_local_server(
             host="localhost",
             port=0,
-            open_browser=True,
+            open_browser=False,
             prompt="consent",
+            authorization_prompt_message="请在浏览器打开以下 Google 授权链接：\n{url}",
+            timeout_seconds=300,
         )
     except Exception as exc:
         raise AuthError("Google 授权失败，请检查测试用户、权限范围和网络连接后重新授权。") from exc

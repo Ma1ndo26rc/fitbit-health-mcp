@@ -29,7 +29,7 @@ python -m pip install -e ".[test]"
 python -m fitbit_health sync --days 30
 ```
 
-首次运行会启动一个临时 localhost 回调服务，并自动打开 Google 授权页。请使用 Fitbit Air 所属的 Google 账号，批准以下三个只读权限：活动与健身、睡眠、健康指标与测量。
+首次运行会启动一个临时 localhost 回调服务，并在命令输出中显示 Google 授权链接。复制完整链接到浏览器打开，使用 Fitbit Air 所属的 Google 账号，批准以下三个只读权限：活动与健身、睡眠、健康指标与测量。
 
 localhost 只会在命令运行期间响应；直接在浏览器打开 localhost 并不会启动程序。
 
@@ -58,7 +58,7 @@ python -m compileall -q src tests
 
 ### 浏览器提示 localhost 无法访问
 
-必须先运行同步命令。只有程序运行时，本地回调端口才存在。
+必须先运行同步命令。只有程序运行时，授权链接中的随机本地回调端口才存在。不要手动打开旧的 `localhost:8080/oauth2/callback` 地址。
 
 ### Google 提示应用无权访问
 

@@ -23,7 +23,7 @@ def test_refreshes_expired_credentials_with_refresh_token() -> None:
     assert resolved is credentials
 
 
-def test_starts_loopback_flow_when_credentials_are_absent() -> None:
+def test_starts_manual_loopback_flow_when_credentials_are_absent() -> None:
     granted = Mock(valid=True)
     flow = Mock()
     flow.run_local_server.return_value = granted
@@ -33,8 +33,10 @@ def test_starts_loopback_flow_when_credentials_are_absent() -> None:
     flow.run_local_server.assert_called_once_with(
         host="localhost",
         port=0,
-        open_browser=True,
+        open_browser=False,
         prompt="consent",
+        authorization_prompt_message="请在浏览器打开以下 Google 授权链接：\n{url}",
+        timeout_seconds=300,
     )
 
 
