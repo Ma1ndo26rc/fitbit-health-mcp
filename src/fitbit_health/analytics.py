@@ -36,8 +36,8 @@ def analyze_metric(values: list[float | int | None], recent_days: int = 7) -> di
     return {
         "current_mean": current_mean,
         "current_samples": len(current),
-        "thirty_day_mean": _rounded_mean(numeric[-30:]),
-        "thirty_day_samples": len(numeric[-30:]),
+        "window_mean": _rounded_mean(numeric),
+        "window_samples": len(numeric),
         "baseline_mean": baseline_mean,
         "baseline_samples": len(baseline),
         "absolute_change": absolute_change,

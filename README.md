@@ -1,6 +1,6 @@
 # Fitbit Health 本地数据管线
 
-这个项目使用 Google Health API 只读同步 Fitbit Air 健康数据，在本地生成最近 7 天与 30 天趋势。它不会调用 LLM，不会上传健康数据，也不会给出医学诊断。
+这个项目使用 Google Health API 只读同步 Fitbit Air 健康数据，在本地生成近期趋势与当前请求窗口统计。它不会调用 LLM，不会上传健康数据，也不会给出医学诊断。
 
 ## 当前范围
 

@@ -72,7 +72,7 @@ def test_pipeline_accepts_supported_fetch_windows(tmp_path: Path, days: int) -> 
     assert all(path.exists() for path in paths)
 
 
-@pytest.mark.parametrize("days", [0, 2, 5, 10, 15, 365, True, "7"])
+@pytest.mark.parametrize("days", [0, 2, 5, 10, 15, 30, 365, True, "7"])
 def test_pipeline_rejects_unsupported_fetch_windows(tmp_path: Path, days) -> None:
     with pytest.raises(ValueError, match="14, 7, 3, or 1"):
         run_sync(tmp_path, days=days, client=Mock())

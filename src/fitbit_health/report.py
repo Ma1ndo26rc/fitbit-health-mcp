@@ -21,6 +21,7 @@ def _format_number(value: float | int | None) -> str:
 
 def render_markdown(analysis: dict) -> str:
     """Render deterministic Chinese trend commentary without diagnosis."""
+    requested_days = analysis.get("data_quality", {}).get("days_requested", 0)
     lines = [
         "# Fitbit Health 趋势报告",
         "",
@@ -40,8 +41,8 @@ def render_markdown(analysis: dict) -> str:
         lines.append(
             f"- {label}：{_format_number(current)}"
             f"（有效样本 {metric.get('current_samples', 0)} 天；{trend}；"
-            f"30 天均值 {_format_number(metric.get('thirty_day_mean'))}，"
-            f"样本 {metric.get('thirty_day_samples', 0)} 天）。"
+            f"近 {requested_days} 天均值 {_format_number(metric.get('window_mean'))}，"
+            f"样本 {metric.get('window_samples', 0)} 天）。"
         )
 
     regularity = analysis.get("sleep_regularity", {})
