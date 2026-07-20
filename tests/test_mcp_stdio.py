@@ -26,6 +26,12 @@ async def inspect_server(parameters: StdioServerParameters, call_mock: bool) -> 
 
             tools = await session.list_tools()
             assert {tool.name for tool in tools.tools} == EXPECTED_TOOLS
+            for tool in tools.tools:
+                assert set(tool.inputSchema["properties"]) == {"days"}
+                days_schema = tool.inputSchema["properties"]["days"]
+                assert days_schema["type"] == "integer"
+                assert days_schema["enum"] == [14, 7, 3, 1]
+                assert days_schema["default"] == 7
 
             if call_mock:
                 result = await session.call_tool("get_steps", {"days": 3})

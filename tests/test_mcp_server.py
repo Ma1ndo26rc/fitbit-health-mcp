@@ -1,4 +1,5 @@
 import asyncio
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -14,6 +15,13 @@ EXPECTED_TOOLS = {
     "get_resting_heart_rate",
     "get_hrv",
     "get_health_summary",
+}
+EXPECTED_ENVELOPE_FIELDS = {
+    "requested_days",
+    "available_days",
+    "data",
+    "missing_data",
+    "diagnostics",
 }
 
 
@@ -82,6 +90,19 @@ def test_registered_tool_delegates_and_returns_structured_json() -> None:
         "diagnostics": {},
     }
     assert '"requested_days": 3' in content[0].text
+
+
+@pytest.mark.parametrize("tool_name", sorted(EXPECTED_TOOLS))
+def test_all_registered_tools_preserve_default_and_envelope_contract(
+    tool_name: str,
+) -> None:
+    server = create_server(service_factory=FakeService)
+
+    content, structured = asyncio.run(server.call_tool(tool_name, {}))
+
+    assert set(structured) == EXPECTED_ENVELOPE_FIELDS
+    assert structured["requested_days"] == 7
+    assert json.loads(content[0].text) == structured
 
 
 @pytest.mark.parametrize("days", [2, True, "7"])

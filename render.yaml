@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: fitbit-health-mcp
+    runtime: python
+    plan: starter
+    numInstances: 1
+    buildCommand: python -m pip install .
+    startCommand: python -m fitbit_health.http_mcp_server
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: MCP_BEARER_TOKEN
+        sync: false
+      - key: FITBIT_HEALTH_TOKEN_PATH
+        value: /opt/render/project/src/.private/token.json
+      - key: FITBIT_HEALTH_CLIENT_SECRET_PATH
+        value: /etc/secrets/client_secret_render.json
+    disk:
+      name: fitbit-health-private
+      mountPath: /opt/render/project/src/.private
+      sizeGB: 1
