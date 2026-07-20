@@ -103,3 +103,27 @@ def test_client_credential_is_staged_without_leaking(
     assert client_secret not in caplog.text
     assert client_secret not in captured.out
     assert client_secret not in captured.err
+
+
+def test_token_seed_is_copied_only_when_runtime_token_is_missing(
+    tmp_path: Path,
+) -> None:
+    token_path = tmp_path / "runtime" / ".private" / "token.json"
+    seed_path = tmp_path / "secrets" / "token.json"
+    seed_path.parent.mkdir()
+    seed_path.write_text('{"token": "seed"}', encoding="utf-8")
+
+    create_health_service_factory(
+        token_path,
+        environ={"FITBIT_HEALTH_TOKEN_SEED_PATH": str(seed_path)},
+    )()
+
+    assert token_path.read_text(encoding="utf-8") == '{"token": "seed"}'
+
+    token_path.write_text('{"token": "refreshed"}', encoding="utf-8")
+    create_health_service_factory(
+        token_path,
+        environ={"FITBIT_HEALTH_TOKEN_SEED_PATH": str(seed_path)},
+    )()
+
+    assert token_path.read_text(encoding="utf-8") == '{"token": "refreshed"}'

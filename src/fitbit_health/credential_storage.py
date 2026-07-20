@@ -8,6 +8,7 @@ from fitbit_health.mcp_tools import HealthMCPService
 
 
 TOKEN_PATH_ENV = "FITBIT_HEALTH_TOKEN_PATH"
+TOKEN_SEED_SOURCE_ENV = "FITBIT_HEALTH_TOKEN_SEED_PATH"
 CLIENT_SECRET_SOURCE_ENV = "FITBIT_HEALTH_CLIENT_SECRET_PATH"
 DEFAULT_TOKEN_PATH = Path(".private") / "token.json"
 
@@ -44,15 +45,31 @@ def create_health_service_factory(
         )
 
     environment = os.environ if environ is None else environ
+    token_seed_source = environment.get(TOKEN_SEED_SOURCE_ENV)
     client_secret_source = environment.get(CLIENT_SECRET_SOURCE_ENV)
     service_root = resolved_token_path.parent.parent
 
     def create_service() -> HealthMCPService:
+        if token_seed_source:
+            _stage_token_seed(Path(token_seed_source), resolved_token_path)
         if client_secret_source:
             _stage_client_secret(Path(client_secret_source), service_root)
         return HealthMCPService(service_root)
 
     return create_service
+
+
+def _stage_token_seed(source: Path, destination: Path) -> None:
+    if destination.exists():
+        return
+
+    resolved_source = source.expanduser().resolve()
+    if resolved_source.name != "token.json" or not resolved_source.is_file():
+        raise CredentialStorageError("Configured Google token seed is unavailable.")
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(resolved_source, destination)
+    ensure_private_file(destination)
 
 
 def _stage_client_secret(source: Path, service_root: Path) -> None:
