@@ -17,6 +17,7 @@ from fitbit_health.credential_storage import write_authorized_user_token
 
 
 STATE_SESSION_KEY = "google_oauth_state"
+CODE_VERIFIER_SESSION_KEY = "google_oauth_code_verifier"
 logger = logging.getLogger(__name__)
 
 _SAFE_OAUTH_ERROR_MESSAGES = (
@@ -85,6 +86,9 @@ class WebOAuthBootstrap:
                 access_type="offline",
                 prompt="consent",
             )
+            code_verifier = flow.code_verifier
+            if not isinstance(code_verifier, str) or not code_verifier:
+                raise ValueError("Google OAuth PKCE verifier is unavailable")
         except Exception:
             return PlainTextResponse(
                 "Google authorization could not be started.",
@@ -92,10 +96,12 @@ class WebOAuthBootstrap:
             )
 
         request.session[STATE_SESSION_KEY] = state
+        request.session[CODE_VERIFIER_SESSION_KEY] = code_verifier
         return RedirectResponse(authorization_url, status_code=302)
 
     async def callback(self, request: Request) -> Response:
         expected_state = request.session.pop(STATE_SESSION_KEY, None)
+        code_verifier = request.session.pop(CODE_VERIFIER_SESSION_KEY, None)
         received_state = request.query_params.get("state")
         if not (
             isinstance(expected_state, str)
@@ -104,11 +110,17 @@ class WebOAuthBootstrap:
         ):
             return PlainTextResponse("Invalid OAuth state.", status_code=400)
 
+        if not isinstance(code_verifier, str) or not code_verifier:
+            return PlainTextResponse("Google authorization failed.", status_code=400)
+
         if request.query_params.get("error"):
             return PlainTextResponse("Google authorization failed.", status_code=400)
 
         try:
-            flow = self._make_flow(state=expected_state)
+            flow = self._make_flow(
+                state=expected_state,
+                code_verifier=code_verifier,
+            )
             logger.info(
                 "Google OAuth token exchange: client_id=%s redirect_uri=%s",
                 flow.client_config.get("client_id", "[unknown]"),
@@ -131,7 +143,11 @@ class WebOAuthBootstrap:
 
         return PlainTextResponse("Google authorization completed.")
 
-    def _make_flow(self, state: str | None = None):
+    def _make_flow(
+        self,
+        state: str | None = None,
+        code_verifier: str | None = None,
+    ):
         try:
             client_config = json.loads(self.client_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -145,6 +161,8 @@ class WebOAuthBootstrap:
         kwargs: dict[str, Any] = {"scopes": SCOPES}
         if state is not None:
             kwargs["state"] = state
+        if code_verifier is not None:
+            kwargs["code_verifier"] = code_verifier
         flow = self._flow_factory(str(self.client_path), **kwargs)
         flow.redirect_uri = self.redirect_uri
         return flow
