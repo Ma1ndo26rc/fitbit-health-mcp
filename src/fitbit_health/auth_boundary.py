@@ -38,6 +38,11 @@ class BearerAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        path = scope.get("path", "")
+        if path not in {"/mcp", "/mcp/"}:
+            await self.app(scope, receive, send)
+            return
+
         token = self._extract_bearer_token(Headers(scope=scope).get("authorization"))
         authorized = False
         if token is not None:

@@ -30,6 +30,14 @@ def resolve_token_path(
     return configured.expanduser().resolve()
 
 
+def write_authorized_user_token(token_path: Path, serialized: str) -> None:
+    """Persist authorized-user credentials at the existing mutable token path."""
+    token_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_private_file(token_path)
+    token_path.write_text(serialized, encoding="utf-8")
+    ensure_private_file(token_path)
+
+
 def create_health_service_factory(
     token_path: Path,
     environ: Mapping[str, str] | None = None,

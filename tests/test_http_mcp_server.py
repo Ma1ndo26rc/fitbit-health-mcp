@@ -27,6 +27,19 @@ EXPECTED_TOOLS = {
 FAKE_BEARER_TOKEN = "phase-2b-test-token"
 
 
+def set_web_oauth_environment(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "FITBIT_HEALTH_CLIENT_SECRET_PATH",
+        "/etc/secrets/client_secret_render.json",
+    )
+    monkeypatch.setenv(
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "https://fitbit-health-mcp.onrender.com/oauth2/callback",
+    )
+    monkeypatch.setenv("OAUTH_BOOTSTRAP_PASSWORD", "bootstrap-password")
+    monkeypatch.setenv("OAUTH_COOKIE_SECRET", "cookie-signing-secret")
+
+
 class FakeBearerTokenValidator:
     def __init__(self, accepted_token: str) -> None:
         self.accepted_token = accepted_token
@@ -243,12 +256,20 @@ def test_main_runs_existing_server_with_streamable_http_transport(
     monkeypatch.setattr(http_mcp_server, "create_http_app", app_factory)
     monkeypatch.setattr(http_mcp_server.uvicorn, "run", uvicorn_run)
     monkeypatch.setenv("MCP_BEARER_TOKEN", FAKE_BEARER_TOKEN)
+    set_web_oauth_environment(monkeypatch)
 
     http_mcp_server.main()
 
     app_factory.assert_called_once()
     validator = app_factory.call_args.kwargs["token_validator"]
     assert asyncio.run(validator.validate(FAKE_BEARER_TOKEN)) is True
+    oauth_bootstrap = app_factory.call_args.kwargs["oauth_bootstrap"]
+    assert oauth_bootstrap.client_path == Path(
+        "/etc/secrets/client_secret_render.json"
+    )
+    assert oauth_bootstrap.redirect_uri == (
+        "https://fitbit-health-mcp.onrender.com/oauth2/callback"
+    )
     uvicorn_run.assert_called_once_with(app, host="127.0.0.1", port=8000)
 
 
@@ -264,6 +285,7 @@ def test_main_maps_render_runtime_environment_to_fastmcp(
     monkeypatch.setenv("PORT", "10000")
     monkeypatch.setenv("RENDER_EXTERNAL_HOSTNAME", "fitbit-health-mcp.onrender.com")
     monkeypatch.setenv("MCP_BEARER_TOKEN", FAKE_BEARER_TOKEN)
+    set_web_oauth_environment(monkeypatch)
 
     http_mcp_server.main()
 
@@ -279,6 +301,31 @@ def test_main_refuses_to_start_without_bearer_token(monkeypatch) -> None:
     monkeypatch.delenv("MCP_BEARER_TOKEN", raising=False)
 
     with pytest.raises(RuntimeError, match="MCP_BEARER_TOKEN"):
+        http_mcp_server.main()
+
+    app_factory.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "missing_name",
+    [
+        "FITBIT_HEALTH_CLIENT_SECRET_PATH",
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "OAUTH_BOOTSTRAP_PASSWORD",
+        "OAUTH_COOKIE_SECRET",
+    ],
+)
+def test_main_refuses_to_start_without_web_oauth_configuration(
+    monkeypatch,
+    missing_name: str,
+) -> None:
+    app_factory = Mock()
+    monkeypatch.setattr(http_mcp_server, "create_http_app", app_factory)
+    monkeypatch.setenv("MCP_BEARER_TOKEN", FAKE_BEARER_TOKEN)
+    set_web_oauth_environment(monkeypatch)
+    monkeypatch.delenv(missing_name)
+
+    with pytest.raises(RuntimeError, match=missing_name):
         http_mcp_server.main()
 
     app_factory.assert_not_called()

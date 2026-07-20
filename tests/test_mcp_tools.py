@@ -7,6 +7,7 @@ import pytest
 
 from fitbit_health.auth import AuthError
 from fitbit_health.client import FetchResult
+from fitbit_health.config import SCOPES
 from fitbit_health.mcp_tools import HealthMCPService
 from fitbit_health.pipeline import DATA_TYPES
 
@@ -95,6 +96,58 @@ def make_service(
         ),
         fake_client,
     )
+
+
+def test_default_mcp_client_loads_web_authorized_user_token_without_installed_client(
+    tmp_path: Path,
+) -> None:
+    token_path = tmp_path / ".private" / "token.json"
+    token_path.parent.mkdir()
+    token_path.write_text(
+        json.dumps({
+            "token": "web-access-token",
+            "refresh_token": "web-refresh-token",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "client_id": "web-client-id",
+            "client_secret": "web-client-secret",
+            "scopes": list(SCOPES),
+            "expiry": "2099-07-20T12:00:00Z",
+        }),
+        encoding="utf-8",
+    )
+
+    client = HealthMCPService(tmp_path)._make_default_client()
+
+    assert client.credentials.token == "web-access-token"
+    assert not list(tmp_path.glob("client_secret_*.json"))
+
+
+def test_default_mcp_client_refreshes_and_writes_back_without_installed_client(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token_path = tmp_path / ".private" / "token.json"
+    token_path.parent.mkdir()
+    token_path.write_text("{}", encoding="utf-8")
+    credentials = Mock(
+        valid=False,
+        expired=True,
+        refresh_token="web-refresh-token",
+    )
+    credentials.to_json.return_value = json.dumps({"token": "refreshed-token"})
+    monkeypatch.setattr(
+        "fitbit_health.auth.Credentials.from_authorized_user_file",
+        Mock(return_value=credentials),
+    )
+
+    client = HealthMCPService(tmp_path)._make_default_client()
+
+    credentials.refresh.assert_called_once()
+    assert client.credentials is credentials
+    assert json.loads(token_path.read_text(encoding="utf-8")) == {
+        "token": "refreshed-token"
+    }
+    assert not list(tmp_path.glob("client_secret_*.json"))
 
 
 @pytest.mark.parametrize(

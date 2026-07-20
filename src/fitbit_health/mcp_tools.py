@@ -6,7 +6,7 @@ from typing import Any
 from fitbit_health.analytics import analyze
 from fitbit_health.auth import AuthError, load_saved_credentials
 from fitbit_health.client import GoogleHealthClient
-from fitbit_health.config import ConfigError, SCOPES, find_installed_credentials
+from fitbit_health.config import ConfigError, SCOPES
 from fitbit_health.fetch_window import FETCH_DAYS_ERROR, is_allowed_fetch_days
 from fitbit_health.normalize import normalize_results
 from fitbit_health.pipeline import DATA_TYPES
@@ -35,7 +35,6 @@ class HealthMCPService:
         self._today_factory = today_factory
 
     def _make_default_client(self) -> GoogleHealthClient:
-        find_installed_credentials(self.root)
         credentials = load_saved_credentials(
             self.root / ".private" / "token.json",
             SCOPES,
