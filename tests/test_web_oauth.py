@@ -262,6 +262,61 @@ def test_oauth_callback_without_refresh_token_preserves_existing_token(
     assert token_path.read_text(encoding="utf-8") == '{"token": "existing-token"}'
 
 
+def test_oauth_callback_logs_sanitized_exception_without_exposing_credentials(
+    tmp_path: Path,
+    caplog,
+) -> None:
+    start_flow = Mock()
+    start_flow.authorization_url.return_value = (
+        GOOGLE_AUTHORIZATION_URL,
+        OAUTH_STATE,
+    )
+    callback_flow = Mock()
+    callback_flow.fetch_token.side_effect = RuntimeError(
+        "invalid_grant authorization_code=secret-auth-code "
+        "access_token=secret-access-token "
+        "refresh_token=secret-refresh-token "
+        "client_secret=secret-client-secret "
+        "credentials=secret-credential-content"
+    )
+    app, token_path = make_app(
+        tmp_path,
+        Mock(side_effect=[start_flow, callback_flow]),
+    )
+
+    async def exercise() -> httpx.Response:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="https://fitbit-health.example",
+        ) as client:
+            await client.get("/auth/google", auth=basic_auth())
+            return await client.get(
+                f"/oauth2/callback?state={OAUTH_STATE}&code=authorization-code"
+            )
+
+    response = asyncio.run(exercise())
+
+    assert response.status_code == 400
+    assert response.text == "Google authorization failed."
+    assert "RuntimeError" in caplog.text
+    assert "invalid_grant" in caplog.text
+    for sensitive_text in (
+        "authorization_code",
+        "secret-auth-code",
+        "access_token",
+        "secret-access-token",
+        "refresh_token",
+        "secret-refresh-token",
+        "client_secret",
+        "secret-client-secret",
+        "credentials",
+        "secret-credential-content",
+    ):
+        assert sensitive_text not in caplog.text
+    assert not token_path.exists()
+
+
 def test_oauth_callback_handles_google_error_without_leaking_details(
     tmp_path: Path,
     caplog,

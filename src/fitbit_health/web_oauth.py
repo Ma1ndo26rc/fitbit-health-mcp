@@ -3,6 +3,7 @@ from binascii import Error as Base64Error
 from collections.abc import Callable
 from hmac import compare_digest
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,24 @@ from fitbit_health.credential_storage import write_authorized_user_token
 
 
 STATE_SESSION_KEY = "google_oauth_state"
+logger = logging.getLogger(__name__)
+
+_SAFE_OAUTH_ERROR_MESSAGES = (
+    "access_denied",
+    "invalid_grant",
+    "mismatching_state",
+    "redirect_uri_mismatch",
+    "insecure transport",
+    "offline google authorization is required",
+)
+
+
+def _sanitize_oauth_error_message(exc: Exception) -> str:
+    message = str(exc).lower()
+    safe_details = [
+        detail for detail in _SAFE_OAUTH_ERROR_MESSAGES if detail in message
+    ]
+    return ", ".join(safe_details) if safe_details else "[redacted]"
 
 
 class WebOAuthBootstrap:
@@ -97,7 +116,12 @@ class WebOAuthBootstrap:
                 self.token_path,
                 flow.credentials.to_json(),
             )
-        except Exception:
+        except Exception as exc:
+            logger.error(
+                "Google OAuth callback failed: %s: %s",
+                type(exc).__name__,
+                _sanitize_oauth_error_message(exc),
+            )
             return PlainTextResponse("Google authorization failed.", status_code=400)
 
         return PlainTextResponse("Google authorization completed.")
