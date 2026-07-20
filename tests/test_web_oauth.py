@@ -266,12 +266,17 @@ def test_oauth_callback_logs_sanitized_exception_without_exposing_credentials(
     tmp_path: Path,
     caplog,
 ) -> None:
+    caplog.set_level("INFO", logger="fitbit_health.web_oauth")
     start_flow = Mock()
     start_flow.authorization_url.return_value = (
         GOOGLE_AUTHORIZATION_URL,
         OAUTH_STATE,
     )
     callback_flow = Mock()
+    callback_flow.client_config = {
+        "client_id": "web-client-id",
+        "client_secret": "configured-client-secret",
+    }
     callback_flow.fetch_token.side_effect = RuntimeError(
         "invalid_grant authorization_code=secret-auth-code "
         "access_token=secret-access-token "
@@ -299,6 +304,8 @@ def test_oauth_callback_logs_sanitized_exception_without_exposing_credentials(
 
     assert response.status_code == 400
     assert response.text == "Google authorization failed."
+    assert "client_id=web-client-id" in caplog.text
+    assert f"redirect_uri={REDIRECT_URI}" in caplog.text
     assert "RuntimeError" in caplog.text
     assert "invalid_grant" in caplog.text
     for sensitive_text in (
@@ -310,6 +317,7 @@ def test_oauth_callback_logs_sanitized_exception_without_exposing_credentials(
         "secret-refresh-token",
         "client_secret",
         "secret-client-secret",
+        "configured-client-secret",
         "credentials",
         "secret-credential-content",
     ):

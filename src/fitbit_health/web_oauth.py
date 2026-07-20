@@ -109,6 +109,11 @@ class WebOAuthBootstrap:
 
         try:
             flow = self._make_flow(state=expected_state)
+            logger.info(
+                "Google OAuth token exchange: client_id=%s redirect_uri=%s",
+                flow.client_config.get("client_id", "[unknown]"),
+                flow.redirect_uri,
+            )
             flow.fetch_token(authorization_response=str(request.url))
             if not flow.credentials.refresh_token:
                 raise ValueError("Offline Google authorization is required")
