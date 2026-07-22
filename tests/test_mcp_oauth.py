@@ -2,6 +2,7 @@ import asyncio
 import base64
 from hashlib import sha256
 from importlib import import_module
+import logging
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -17,6 +18,7 @@ REDIRECT_URI = "https://chatgpt.com/connector/oauth/test-callback"
 OWNER_PASSWORD = "owner-password"
 CODE_CHALLENGE = "A" * 43
 CODE_VERIFIER = "v" * 43
+DIAGNOSTIC_LOGGER = "uvicorn.error"
 
 
 def metadata_adapter_type():
@@ -392,6 +394,57 @@ def test_authorize_issues_one_time_code_with_bound_pkce_and_resource() -> None:
     assert replay is None
 
 
+def test_authorize_logs_only_safe_parameter_diagnostics_after_owner_auth(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app, _ = make_authorization_app()
+
+    with caplog.at_level(logging.INFO, logger=DIAGNOSTIC_LOGGER):
+        response = asyncio.run(
+            request(
+                app,
+                "GET",
+                "/oauth/authorize",
+                params=authorization_params(),
+                headers=owner_basic_header(),
+            )
+        )
+
+    assert response.status_code == 302
+    assert caplog.messages == [
+        "event=mcp_oauth_authorize owner_auth_ok=true "
+        "client_id_present=true redirect_uri_present=true "
+        "response_type_present=true resource_present=true state_present=true "
+        "code_challenge_present=true code_challenge_length=43 "
+        "code_challenge_method=S256"
+    ]
+    diagnostic = caplog.messages[0]
+    assert CODE_CHALLENGE not in diagnostic
+    assert "connector-state" not in diagnostic
+    assert OWNER_PASSWORD not in diagnostic
+    assert "Authorization" not in diagnostic
+
+
+def test_authorize_does_not_log_when_owner_authentication_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app, _ = make_authorization_app()
+
+    with caplog.at_level(logging.INFO, logger=DIAGNOSTIC_LOGGER):
+        response = asyncio.run(
+            request(
+                app,
+                "GET",
+                "/oauth/authorize",
+                params=authorization_params(),
+                headers=owner_basic_header("wrong-password"),
+            )
+        )
+
+    assert response.status_code == 401
+    assert caplog.messages == []
+
+
 @pytest.mark.parametrize(
     ("override", "expected_status"),
     [
@@ -439,7 +492,9 @@ def test_authorize_route_is_get_only() -> None:
     assert response.status_code == 405
 
 
-def test_token_endpoint_exchanges_code_and_returns_opaque_token_pair() -> None:
+def test_token_endpoint_exchanges_code_and_returns_opaque_token_pair(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     app, _, token_store = make_token_app()
 
     async def exchange():
@@ -460,7 +515,8 @@ def test_token_endpoint_exchanges_code_and_returns_opaque_token_pair() -> None:
         refresh = await token_store.load_refresh_token("issued-refresh-token")
         return response, access, refresh
 
-    response, access, refresh = asyncio.run(exchange())
+    with caplog.at_level(logging.INFO, logger=DIAGNOSTIC_LOGGER):
+        response, access, refresh = asyncio.run(exchange())
 
     assert response.status_code == 200
     assert response.json() == {
@@ -474,6 +530,12 @@ def test_token_endpoint_exchanges_code_and_returns_opaque_token_pair() -> None:
     assert response.headers["pragma"] == "no-cache"
     assert access.resource == refresh.resource == RESOURCE_URL
     assert access.subject == refresh.subject == "single-owner"
+    assert caplog.messages[-1] == (
+        "event=mcp_oauth_token status_code=200 outcome=success"
+    )
+    diagnostics = " ".join(caplog.messages)
+    assert "issued-access-token" not in diagnostics
+    assert "issued-refresh-token" not in diagnostics
 
 
 def test_pkce_failure_does_not_consume_code_but_success_and_replay_do() -> None:
@@ -514,6 +576,40 @@ def test_pkce_failure_does_not_consume_code_but_success_and_replay_do() -> None:
     assert correct.status_code == 200
     assert replay.status_code == 400
     assert replay.json()["error"] == "invalid_grant"
+
+
+def test_token_endpoint_logs_only_safe_outcomes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app, _, _ = make_token_app()
+
+    async def exchange():
+        code = await issue_authorization_code(app)
+        return await request(
+            app,
+            "POST",
+            "/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": CLIENT_ID,
+                "code": code,
+                "redirect_uri": REDIRECT_URI,
+                "code_verifier": "w" * 43,
+            },
+        )
+
+    with caplog.at_level(logging.INFO, logger=DIAGNOSTIC_LOGGER):
+        response = asyncio.run(exchange())
+
+    assert response.status_code == 400
+    assert caplog.messages[-1] == (
+        "event=mcp_oauth_token status_code=400 outcome=invalid_grant"
+    )
+    diagnostics = " ".join(caplog.messages)
+    assert CODE_VERIFIER not in diagnostics
+    assert "w" * 43 not in diagnostics
+    assert "issued-access-token" not in diagnostics
+    assert "issued-refresh-token" not in diagnostics
 
 
 def test_token_endpoint_rejects_redirect_change_and_non_post_requests() -> None:

@@ -5,6 +5,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from hashlib import sha256
 import hmac
+import json
+import logging
 import re
 import secrets
 import time
@@ -28,6 +30,8 @@ from starlette.routing import Route
 
 from fitbit_health.mcp_token_store import OpaqueTokenStore
 
+
+logger = logging.getLogger("uvicorn.error")
 
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -309,6 +313,30 @@ class MCPOAuthAuthorization:
                     "Cache-Control": "no-store",
                 },
             )
+        params = request.query_params
+        code_challenge = params.get("code_challenge")
+        code_challenge_method = params.get("code_challenge_method")
+        logger.info(
+            "event=mcp_oauth_authorize owner_auth_ok=true "
+            "client_id_present=%s redirect_uri_present=%s "
+            "response_type_present=%s resource_present=%s state_present=%s "
+            "code_challenge_present=%s code_challenge_length=%d "
+            "code_challenge_method=%s",
+            _presence(params, "client_id"),
+            _presence(params, "redirect_uri"),
+            _presence(params, "response_type"),
+            _presence(params, "resource"),
+            _presence(params, "state"),
+            _presence(params, "code_challenge"),
+            len(code_challenge) if code_challenge is not None else 0,
+            (
+                "S256"
+                if code_challenge_method == "S256"
+                else "unsupported"
+                if code_challenge_method is not None
+                else "missing"
+            ),
+        )
         return await self._handler.handle(request)
 
     def _has_valid_owner_credentials(self, request: Request) -> bool:
@@ -343,7 +371,35 @@ class MCPOAuthTokenEndpoint:
         return [Route("/oauth/token", self.token, methods=["POST"])]
 
     async def token(self, request: Request) -> Response:
-        return await self._handler.handle(request)
+        response = await self._handler.handle(request)
+        logger.info(
+            "event=mcp_oauth_token status_code=%d outcome=%s",
+            response.status_code,
+            _safe_token_outcome(response),
+        )
+        return response
+
+
+def _presence(params, field: str) -> str:
+    return "true" if field in params else "false"
+
+
+def _safe_token_outcome(response: Response) -> str:
+    if response.status_code == 200:
+        return "success"
+    try:
+        error = json.loads(response.body).get("error")
+    except (AttributeError, json.JSONDecodeError, TypeError):
+        return "error"
+    if error in {
+        "invalid_grant",
+        "invalid_request",
+        "invalid_scope",
+        "unauthorized_client",
+        "unsupported_grant_type",
+    }:
+        return error
+    return "error"
 
 
 class MCPOAuthMetadata:
