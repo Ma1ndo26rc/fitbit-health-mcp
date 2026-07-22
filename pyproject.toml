@@ -5,8 +5,20 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fitbit-health"
 version = "0.1.0"
-description = "Local Google Health data pipeline for Fitbit Air"
+description = "Single-user remote MCP server for read-only Google Health data in ChatGPT"
+readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.12"
+keywords = [
+  "mcp",
+  "fastmcp",
+  "chatgpt",
+  "google-health",
+  "fitbit",
+  "oauth2",
+  "pkce",
+  "render",
+]
 dependencies = [
   "google-auth>=2.40,<3",
   "google-auth-oauthlib>=1.2,<2",
@@ -15,6 +27,11 @@ dependencies = [
   "requests>=2.32,<3",
   "uvicorn>=0.31,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Ma1ndo26rc/fitbit-health-mcp"
+Repository = "https://github.com/Ma1ndo26rc/fitbit-health-mcp"
+Issues = "https://github.com/Ma1ndo26rc/fitbit-health-mcp/issues"
 
 [project.optional-dependencies]
 test = ["pytest>=7.4,<9"]

@@ -1,8 +1,28 @@
-# OAuth credentials and tokens
-client_secret_*.json
-token*.json
-.env
+# OAuth credentials, tokens, and private keys
 .private/
+.env*
+client_secret_*.json
+credential
+credential.*
+credentials/
+credentials.*
+*_credentials.json
+token
+token.*
+token_*.json
+token*.json
+*.token
+secret
+secret.*
+secrets/
+*.secret
+*.pem
+*.key
+*.p12
+
+# Logs
+*.log
+logs/
 
 # Personal health data and generated reports
 data/raw/

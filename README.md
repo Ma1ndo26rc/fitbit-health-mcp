@@ -1,80 +1,37 @@
-# Fitbit Health 本地数据管线
+# Fitbit Health MCP
 
-这个项目使用 Google Health API 只读同步 Fitbit Air 健康数据，在本地生成近期趋势与当前请求窗口统计。它不会调用 LLM，不会上传健康数据，也不会给出医学诊断。
+A single-user reference implementation that exposes read-only Google Health data to ChatGPT through a remote Model Context Protocol (MCP) server.
 
-## 当前范围
+The project supports both local stdio MCP and remote Streamable HTTP MCP. The remote path separates ChatGPT authentication (MCP OAuth 2.1 Authorization Code with PKCE) from Google Health authorization (Google Web OAuth with PKCE), and is packaged for deployment on Render.
 
-- 睡眠时长与作息规律性
-- 步数
-- 平均心率
-- 每日静息心率
-- 每日 HRV（RMSSD）
-- 标准化 JSON、分析 JSON 和中文 Markdown 报告
-- 供 ChatGPT/Codex 本地调用的 stdio MCP Server
+> This project is not a medical device and does not provide diagnosis, treatment, or medication advice.
 
-网页 Dashboard 和云端定时任务不在当前范围内。
+## Architecture
 
-## 安装
+```mermaid
+flowchart LR
+    Owner["Owner browser"] -->|"Google Web OAuth + PKCE"| Google["Google OAuth"]
+    Google -->|"Google credentials"| Token["Private token.json"]
 
-要求 Python 3.12 或更高版本。在项目目录运行：
-
-```powershell
-python -m pip install -e ".[test]"
+    ChatGPT["ChatGPT Connector"] -->|"MCP OAuth 2.1 + PKCE"| OAuth["MCP authorization server"]
+    OAuth -->|"MCP access token"| MCP["Remote /mcp endpoint"]
+    MCP --> Service["HealthMCPService"]
+    Service -->|"Load and refresh Google credentials"| Token
+    Service --> API["Google Health API"]
+    API -->|"Requested health data"| Service
+    Service -->|"Structured MCP result"| ChatGPT
 ```
 
-项目目录必须包含 Google Cloud 下载的“桌面设备”OAuth JSON。程序会忽略 Web 客户端凭据，并且凭据文件已被 `.gitignore` 排除。
+The two OAuth boundaries are intentionally independent:
 
-## 首次同步
+- **MCP OAuth** authenticates ChatGPT to the remote `/mcp` resource. Access and refresh tokens are opaque, stored as digests in process memory, and scoped to `health:read`.
+- **Google OAuth** authorizes the server to read the owner's Google Health data. Google credentials are stored in `.private/token.json`; they are never issued to ChatGPT.
 
-```powershell
-python -m fitbit_health sync --days 14
-```
+When a tool is called, the requested health data travels through the deployed MCP server and is returned to the connected ChatGPT conversation. Google OAuth credentials are not returned to ChatGPT.
 
-`days` 只支持 `14`、`7`、`3`、`1` 四档；最大抓取范围为 14 天，默认值为 7 天。
+## MCP tools
 
-首次运行会启动一个临时 localhost 回调服务，并在命令输出中显示 Google 授权链接。复制完整链接到浏览器打开，使用 Fitbit Air 所属的 Google 账号，批准以下三个只读权限：活动与健身、睡眠、健康指标与测量。
-
-localhost 只会在命令运行期间响应；直接在浏览器打开 localhost 并不会启动程序。
-
-授权后 token 保存在 `.private/token.json`。后续运行会自动刷新 token。Google OAuth 项目处于 Testing 状态时，refresh token 可能在 7 天后失效，需要重新授权。
-
-## 输出
-
-输出位于 `reports/`：
-
-- `daily_health_summary.json`：按本地日期组织的标准化数据
-- `health_analysis.json`：带样本数的趋势统计
-- `health_report.md`：中文趋势报告
-
-上述目录、OAuth 凭据和 token 均不会被 Git 跟踪。
-
-## 测试
-
-```powershell
-python -m pytest -q
-python -m compileall -q src tests
-```
-
-测试只使用合成数据，不包含真实健康记录。
-
-## 本地 MCP Server
-
-MCP Server 复用同一套 OAuth、Google Health API、标准化与分析逻辑。它只使用本地 stdio，不启动 Web Server，也不暴露 HTTP 端口。
-
-首次使用 MCP 前，请在普通终端完成一次交互授权：
-
-```powershell
-python -m fitbit_health sync --days 1
-```
-
-授权成功后，可用任一方式启动：
-
-```powershell
-fitbit-health-mcp
-python -m fitbit_health.mcp_server
-```
-
-可用工具：
+The same six tools are registered for stdio and Streamable HTTP:
 
 - `get_sleep(days: int = 7)`
 - `get_steps(days: int = 7)`
@@ -83,55 +40,149 @@ python -m fitbit_health.mcp_server
 - `get_hrv(days: int = 7)`
 - `get_health_summary(days: int = 7)`
 
-`days` 只支持 `14`、`7`、`3`、`1` 四档；最大抓取范围为 14 天，默认值为 7 天。
+`days` accepts only `14`, `7`, `3`, or `1`; the default is `7`. Tool results use a stable JSON envelope containing `requested_days`, `available_days`, `data`, `missing_data`, and `diagnostics`.
 
-每个工具都返回 JSON 对象，固定包含 `requested_days`、`available_days`、`data`、`missing_data` 和 `diagnostics`。缺失数据、单一 API 类型失败和授权失效都会作为诊断返回，不会让 MCP Server 崩溃。
+## Requirements and installation
 
-### Codex TOML 配置示例
+- Python 3.12 or newer
+- A Google Cloud project with the required read-only Google Health scopes
+- A Desktop OAuth client for local CLI/stdio authorization, or a Web OAuth client for the remote bootstrap flow
+
+```powershell
+python -m pip install -e ".[test]"
+```
+
+OAuth client files, tokens, private data, generated reports, environment files, and logs are excluded by `.gitignore`. Never commit real credentials or health data.
+
+## Local CLI and stdio MCP
+
+Place a Google Desktop OAuth client JSON in the project root using a name matched by `client_secret_*.json`, then authorize and synchronize:
+
+```powershell
+python -m fitbit_health sync --days 7
+```
+
+The local flow opens a temporary localhost callback and stores the resulting Google authorized-user credentials in `.private/token.json`.
+
+Start the stdio MCP server with either command:
+
+```powershell
+fitbit-health-mcp
+python -m fitbit_health.mcp_server
+```
+
+Generic Codex configuration:
 
 ```toml
 [mcp_servers.fitbit_health]
-command = "D:\\anaconda\\python.exe"
+command = "python"
 args = ["-m", "fitbit_health.mcp_server"]
-cwd = "E:\\CodeX_Lab"
+cwd = "/path/to/fitbit-health-mcp"
 ```
 
-### ChatGPT/Codex JSON 配置示例
+## Remote MCP and ChatGPT Connector
 
-```json
-{
-  "mcpServers": {
-    "fitbit_health": {
-      "command": "D:\\anaconda\\python.exe",
-      "args": ["-m", "fitbit_health.mcp_server"],
-      "cwd": "E:\\CodeX_Lab"
-    }
-  }
-}
+The remote entry point is:
+
+```powershell
+python -m fitbit_health.http_mcp_server
 ```
 
-这里的 Python 路径来自本机 `(Get-Command python).Source`。如果环境改变，请替换成新的绝对路径。配置中不要加入 client secret、access token 或 refresh token。
+It exposes:
 
-如果工具返回 `diagnostics.authentication`，请退出 MCP 客户端，在普通终端重新运行 `python -m fitbit_health sync --days 1`，授权完成后再重启 MCP 客户端。MCP 进程自身不会打开浏览器或输出 OAuth 授权链接，以免污染 stdio 协议。
+- `/mcp` — authenticated Streamable HTTP MCP
+- `/.well-known/oauth-protected-resource` — protected-resource metadata
+- `/.well-known/oauth-authorization-server` — authorization-server metadata
+- `/oauth/authorize` and `/oauth/token` — MCP OAuth authorization code, PKCE, and refresh flow
+- `/auth/google` and `/oauth2/callback` — owner-only Google Web OAuth bootstrap
 
-## 常见问题
+To connect from ChatGPT, deploy the server over HTTPS, configure the fixed public MCP client ID and ChatGPT redirect URI, then add the deployment's `/mcp` URL as a custom connector. ChatGPT discovers the OAuth metadata and six tools from that endpoint.
 
-### 浏览器提示 localhost 无法访问
+The current implementation uses an owner password at `/oauth/authorize`. Use a unique random value and do not reuse the Google bootstrap password.
 
-必须先运行同步命令。只有程序运行时，授权链接中的随机本地回调端口才存在。不要手动打开旧的 `localhost:8080/oauth2/callback` 地址。
+## Render deployment
 
-### Google 提示应用无权访问
+[`render.yaml`](render.yaml) defines a single free-plan Python Web Service that installs the package and runs the remote MCP entry point. Render terminates TLS; the app binds to `0.0.0.0:$PORT` and keeps the MCP resource at `/mcp`.
 
-确认登录邮箱已加入 Google Auth Platform 的测试用户，并在“数据访问”中启用了三个 Google Health 只读 scope。
+Create these Render Secret Files with the exact filenames shown:
 
-### 某类数据为空
+| Secret file | Purpose |
+| --- | --- |
+| `/etc/secrets/client_secret_render.json` | Google Web OAuth client configuration |
+| `/etc/secrets/token.json` | Optional seed for the runtime Google token |
 
-设备能力、佩戴情况、同步状态和授权范围都可能影响数据可用性。报告会显示有效样本数和 API 诊断，不会用推测值填补缺失数据。
+Configure the following environment variables. Values shown in `render.yaml` are deployment defaults; every password, client identifier, redirect URI, and secret must be set for the actual deployment.
 
-### Token 刷新失败
+| Variable | Purpose |
+| --- | --- |
+| `MCP_OAUTH_ISSUER_URL` | Public HTTPS origin of the authorization server |
+| `MCP_OAUTH_RESOURCE_URL` | Exact public `/mcp` resource URL |
+| `MCP_OAUTH_CLIENT_ID` | Pre-registered ChatGPT public client ID |
+| `MCP_OAUTH_REDIRECT_URI` | Exact ChatGPT connector callback URI |
+| `MCP_OAUTH_OWNER_PASSWORD` | Owner login for MCP authorization |
+| `OAUTH_BOOTSTRAP_PASSWORD` | Owner login for `/auth/google` |
+| `OAUTH_COOKIE_SECRET` | Random signing key for the Google OAuth state session |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Exact deployment `/oauth2/callback` URI registered with Google |
+| `FITBIT_HEALTH_CLIENT_SECRET_PATH` | Google Web OAuth client Secret File path |
+| `FITBIT_HEALTH_TOKEN_PATH` | Writable runtime Google token path |
+| `FITBIT_HEALTH_TOKEN_SEED_PATH` | Read-only Google token seed path |
+| `MCP_BEARER_TOKEN` | Required legacy compatibility token in the current release |
 
-关闭正在运行的同步程序，将 `.private/token.json` 移出项目后重新运行同步并授权。不要删除 OAuth 客户端凭据。
+After deployment, visit `/auth/google` over HTTPS and complete the owner-protected Google authorization flow. The callback writes the authorized-user credentials to the runtime token path.
 
-## 免责声明
+## Token lifecycle
 
-本项目仅描述可穿戴设备数据趋势，不构成医疗诊断、治疗或用药建议。如有健康疑虑，请咨询合格的医疗专业人员。
+| Credential | Purpose | Current storage |
+| --- | --- | --- |
+| Google access/refresh token | Server access to Google Health | Writable `.private/token.json` |
+| Google token seed | Restore the runtime token when it is absent | Render Secret File |
+| MCP access/refresh token | ChatGPT access to `/mcp` | Digests in process memory |
+| Legacy static bearer | Backward-compatible direct `/mcp` access | Render environment secret |
+
+Important operational behavior:
+
+- Render's free service does not provide a persistent disk. A restart, cold start, or redeploy may discard the writable Google token and restore the older Secret File seed.
+- If Google issues a new refresh token, update the seed through Render's secret management. Otherwise a later rebuild may restore an obsolete token.
+- MCP access and refresh tokens are in memory. A process restart invalidates them and ChatGPT may need to authorize or reconnect the connector.
+- A Google OAuth project in Testing status may issue refresh tokens with a limited lifetime. Reauthorize through `/auth/google` when Google authorization is no longer available.
+
+## Security model
+
+- Google scopes are read-only.
+- MCP authorization codes are single-use, short-lived, and stored only as hashes.
+- MCP access and refresh tokens are opaque; refresh tokens rotate and token material is stored only as digests.
+- MCP access tokens are bound to the configured `/mcp` resource and `health:read` scope.
+- Google Web OAuth uses state validation, PKCE, a signed `Secure`/`HttpOnly` session cookie, and an owner-protected bootstrap route.
+- Authentication failures are handled before health tools load Google credentials.
+- Tests use synthetic data and do not contain real health records.
+
+### Legacy bearer compatibility
+
+The current remote startup still requires `MCP_BEARER_TOKEN` and accepts it alongside MCP OAuth access tokens. This is a long-lived, high-privilege compatibility path. For a production hardening release, add an explicit setting such as `ENABLE_LEGACY_BEARER=false` by default and enable the legacy verifier only when that flag is intentionally set. This release-preparation change does not alter or remove the legacy code path.
+
+### Known OAuth compliance gap
+
+The authorization request validates the MCP `resource`, but the current token endpoint does not yet require and validate RFC 8707 `resource` on authorization-code and refresh-token requests. The project therefore does not claim full MCP 2025-11-25 authorization compliance. Address this in a separately scoped security change before treating the service as production hardened.
+
+## Known limitations
+
+- Single user and single tenant; this is a reference implementation, not a SaaS platform.
+- Read-only health access; no write operations are provided.
+- Only `14`, `7`, `3`, and `1` day request windows are supported.
+- MCP OAuth tokens are not durable across process restarts.
+- Render Free runtime files are ephemeral.
+- Google OAuth Testing policy may require periodic reauthorization.
+- Windows does not receive the same token-file permission hardening as POSIX systems.
+- Health data returned by a tool is sent through Render to the connected ChatGPT conversation.
+- No medical diagnosis or clinical reliability is claimed.
+
+## Tests
+
+```powershell
+python -m pytest -q
+python -m compileall -q src tests
+```
+
+## License
+
+Released under the [MIT License](LICENSE).
