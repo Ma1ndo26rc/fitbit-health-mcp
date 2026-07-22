@@ -2,6 +2,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
+from mcp.server.auth.provider import TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import WithJsonSchema
 
@@ -25,8 +27,13 @@ class ToolEnvelope(TypedDict):
 
 def create_server(
     service_factory: Callable[[], HealthMCPService] | None = None,
+    *,
+    token_verifier: TokenVerifier | None = None,
+    auth_settings: AuthSettings | None = None,
 ) -> FastMCP:
-    """Create the local stdio server without authenticating or fetching data."""
+    """Create the lazy MCP server with optional HTTP resource authentication."""
+    if (token_verifier is None) != (auth_settings is None):
+        raise ValueError("token_verifier and auth_settings must be provided together")
     factory = service_factory or (lambda: HealthMCPService(Path.cwd()))
     service: HealthMCPService | None = None
 
@@ -36,7 +43,12 @@ def create_server(
             service = factory()
         return service
 
-    server = FastMCP("Fitbit Health", json_response=True)
+    server = FastMCP(
+        "Fitbit Health",
+        json_response=True,
+        token_verifier=token_verifier,
+        auth=auth_settings,
+    )
 
     @server.tool(structured_output=True)
     def get_sleep(days: MCPFetchDays = DEFAULT_FETCH_DAYS) -> ToolEnvelope:

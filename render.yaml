@@ -11,6 +11,16 @@ services:
         value: 0.0.0.0
       - key: MCP_BEARER_TOKEN
         sync: false
+      - key: MCP_OAUTH_ISSUER_URL
+        value: https://fitbit-health-mcp.onrender.com
+      - key: MCP_OAUTH_RESOURCE_URL
+        value: https://fitbit-health-mcp.onrender.com/mcp
+      - key: MCP_OAUTH_CLIENT_ID
+        sync: false
+      - key: MCP_OAUTH_REDIRECT_URI
+        sync: false
+      - key: MCP_OAUTH_OWNER_PASSWORD
+        sync: false
       - key: OAUTH_BOOTSTRAP_PASSWORD
         sync: false
       - key: OAUTH_COOKIE_SECRET

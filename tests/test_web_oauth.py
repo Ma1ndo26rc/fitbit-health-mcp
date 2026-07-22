@@ -6,8 +6,10 @@ from unittest.mock import Mock
 
 import httpx
 from itsdangerous import TimestampSigner
+from mcp.server.auth.settings import AuthSettings
 
 from fitbit_health.http_mcp_server import create_http_app
+from fitbit_health.mcp_resource_auth import LegacyStaticTokenVerifier
 from fitbit_health.web_oauth import WebOAuthBootstrap
 
 
@@ -19,11 +21,7 @@ GOOGLE_AUTHORIZATION_URL = (
 )
 OAUTH_STATE = "phase-3b-oauth-state"
 OAUTH_CODE_VERIFIER = "phase-3b-pkce-code-verifier"
-
-
-class AllowOnlyMCPToken:
-    async def validate(self, token: str) -> bool:
-        return token == "mcp-only-token"
+MCP_RESOURCE_URL = "https://fitbit-health.example/mcp"
 
 
 def test_runtime_declares_signed_session_dependency() -> None:
@@ -53,7 +51,15 @@ def make_app(
     )
     app = create_http_app(
         service_factory=Mock(),
-        token_validator=AllowOnlyMCPToken(),
+        token_verifier=LegacyStaticTokenVerifier(
+            accepted_token="mcp-only-token",
+            resource_url=MCP_RESOURCE_URL,
+        ),
+        auth_settings=AuthSettings(
+            issuer_url="https://fitbit-health.example",
+            resource_server_url=MCP_RESOURCE_URL,
+            required_scopes=["health:read"],
+        ),
         oauth_bootstrap=bootstrap,
     )
     return app, token_path
